@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>Network Devices Dashboard</h1>
+    <button onclick="scanDevices()">Scan Devices</button>
+    <div id="devices"></div>
+
+    <script>
+        function scanDevices() {
+            fetch('/api/scan')
+                .then(response => response.json())
+                .then(data => {
+                    const devicesDiv = document.getElementById('devices');
+                    devicesDiv.innerHTML = '';
+                    data.forEach(device => {
+                        devicesDiv.innerHTML += `<p>${device.IP} - ${device.mac_address} - ${device.hostname}</p>`;
+                    });
+                });
+        }
+    </script>
+</body>
+</html>
