@@ -5,6 +5,8 @@ import os
 import re
 import sqlite3
 import subprocess
+import threading
+import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory, render_template_string
 
@@ -51,6 +53,7 @@ def get_devices():
         cursor = conn.execute('SELECT * FROM devices')
         return [dict(row) for row in cursor.fetchall()]
 
+
 # simeple LAN device discovery using arp -a
 
 ARP_IP_RE = re.compile(r"(\d{1,3}(?:\.\d{1,3}){3})")
@@ -75,6 +78,41 @@ def scan_arp_table():
         print(f"Error scanning ARP table: {e}")
         return []
 
+# Device port scanning using nmap
+def scan_device_thread(ip, job_id):
+    try:
+        jobs[job_id]["status"] = "running"
+        jobs[job_id]["message"] = "Scanning 1-65535..."
+
+        # Full TCP scan all ports:
+        cmd = ["nmap", "-p-", "-T4", "--open", ip]
+        out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
+
+        open_ports = []
+        for line in out.splitlines():
+            if "/tcp" in line and " open " in line:
+                port = line.split("/")[0].strip()
+                if port.isdigit():
+                    open_ports.append(int(port))
+
+        open_ports = sorted(set(open_ports))
+        jobs[job_id]["status"] = "done"
+        jobs[job_id]["open_ports"] = open_ports
+        jobs[job_id]["raw"] = out
+        jobs[job_id]["message"] = "Finished"
+
+    except subprocess.CalledProcessError as e:
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["message"] = "nmap failed"
+        jobs[job_id]["raw"] = e.output
+
+    except Exception as e:
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["message"] = str(e)
+
+
+jobs = {}
+
 @app.get("/")
 def index():
     return send_from_directory(".", "index.html")
@@ -92,6 +130,32 @@ def scan_api():
     for ip, mac, hostname in devices:
         update_device(ip, mac, hostname)
     return jsonify(get_devices())
+
+@app.post("/api/scan_device")
+def scan_device_api():
+    data = request.get_json()
+    ip = data.get("ip")
+
+    if not ip:
+        return jsonify({"error": "Missing IP"}), 400
+
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {
+        "status": "queued",
+        "ip": ip
+    }
+
+    threading.Thread(
+        target=scan_device_thread,
+        args=(ip, job_id),
+        daemon=True
+    ).start()
+
+    return jsonify({"job_id": job_id})
+
+@app.get("/api/scan_status/<job_id>")
+def scan_status(job_id):
+    return jsonify(jobs.get(job_id, {"status": "not_found"}))
 
 if __name__ == "__main__":
     init_db()
