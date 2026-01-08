@@ -55,7 +55,8 @@ function pollStatus(jobId, span) {
         setTimeout(() => pollStatus(jobId, span), 2000);
       }
       if (data.status === 'done') {
-        span.textContent = ' done (ports found)';
+        const ports = data.open_ports || [];
+        span.textContent = ' done. Open ports: ' + (ports.length ? ports.join(', ') : 'none');
       }
     });
 }
