@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+
+
+    <title>Document</title>
+</head>
+<body>
+<nav class="navbar">
+  <div class="navbar-title">Pi-Guardian</div>
+  <div class="navbar-buttons">
+    <button class="nav-button active" id="btn-scanned-devices">Scanned Devices</button>
+    <button class="nav-button" id="btn-traffic-monitor">Traffic Monitor</button>
+  </div>
+</nav>
+
+<main class="main-content">
+  <section id="scanned-devices-section" class="content-section">
+    <h2>Scanned Devices</h2>
+
+    <button onclick="scanDevices()">Scan Devices</button>
+
+    <table class="devices-table">
+      <thead>
+        <tr>
+          <th>IP Address</th>
+          <th>MAC Address</th>
+          <th>Hostname</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="device-table-body">
+        <!-- Device rows will be populated here -->
+
+      </tbody>
+    </table>
+  </section>
+
+  <section id="traffic-monitor-section" class="content-section" style="display:none;">
+    <h2>Traffic Monitor</h2>
+    <div id="traffic-charts">
+      <!-- Traffic charts will be rendered here -->
+    </div>
+  </section>
+</main>
+
+<script>
+  const btnScannedDevices = document.getElementById('btn-scanned-devices');
+  const btnTrafficMonitor = document.getElementById('btn-traffic-monitor');
+  const scannedDevicesSection = document.getElementById('scanned-devices-section');
+  const trafficMonitorSection = document.getElementById('traffic-monitor-section');
+
+  btnScannedDevices.addEventListener('click', () => {
+    scannedDevicesSection.style.display = 'block';
+    trafficMonitorSection.style.display = 'none';
+    btnScannedDevices.classList.add('active');
+    btnTrafficMonitor.classList.remove('active');
+  });
+
+  btnTrafficMonitor.addEventListener('click', () => {
+    scannedDevicesSection.style.display = 'none';
+    trafficMonitorSection.style.display = 'block';
+    btnTrafficMonitor.classList.add('active');
+    btnScannedDevices.classList.remove('active');
+  });
+
+  function scanDevices() {
+    fetch('/api/scan')
+      .then(response => response.json())
+      .then(data => {
+        const tbody = document.getElementById('device-table-body');
+        tbody.innerHTML = '';
+        data.forEach(device => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${device.IP}</td>
+            <td>${device.mac_address || ''}</td>
+            <td>${device.hostname || ''}</td>
+            <td>
+              <button onclick="scanDevice('${device.IP}', this)">Scan</button>
+              <span></span>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      });
+  }
+
+  function scanDevice(ip, btn) {
+    const statusSpan = btn.nextElementSibling;
+    statusSpan.textContent = ' scanning…';
+    fetch('/api/scan_device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip })
+    })
+    .then(r => r.json())
+    .then(data => {
+      pollStatus(data.job_id, statusSpan);
+    });
+  }
+
+  function pollStatus(jobId, span) {
+    fetch(`/api/scan_status/${jobId}`)
+      .then(r => r.json())
+      .then(data => {
+        span.textContent = ' ' + data.status;
+        if (data.status === 'queued' || data.status === 'running') {
+          setTimeout(() => pollStatus(jobId, span), 2000);
+        }
+        if (data.status === 'done') {
+          const ports = data.open_ports || [];
+          span.textContent = ' done. Open ports: ' + (ports.length ? ports.join(', ') : 'none');
+        }
+      });
+  }
+
+  // load devices on page load
+  scanDevices();
+</script>

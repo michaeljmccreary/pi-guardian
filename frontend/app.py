@@ -8,7 +8,7 @@ import subprocess
 import threading
 import uuid
 from datetime import datetime
-from flask import Flask, request, jsonify, send_from_directory, render_template_string
+from flask import Flask, request, jsonify, send_from_directory, render_template
 
 
 
@@ -115,7 +115,7 @@ jobs = {}
 
 @app.get("/")
 def index():
-    return send_from_directory(".", "index.html")
+    return render_template("index.html")
 
 @app.get("/api/devices")
 def get_devices_api():
