@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/style.css">
-
-
     <title>Document</title>
 </head>
 <body>
@@ -69,11 +67,36 @@
 
   function scanDevices() {
     fetch('/api/scan')
-      .then(response => response.json())
+      .then(response => {
+        // Check for HTTP errors
+        if (!response.ok) {
+          console.log('scanDevices() HTTP error', response.status);
+          throw new Error('scanDevices() HTTP error', response.status);
+        }
+        return response.json();
+      })
       .then(data => {
+        // Check for valid data formats
+        if (!Array.isArray(data)) {
+          console.log('scanDevices() invalid data format', data);
+          throw new Error('scanDevices() invalid data format', data);
+        }
+
         const tbody = document.getElementById('device-table-body');
+        if (!tbody) {
+          console.log('scanDevices() tbody element not found');
+          throw new Error('scanDevices() tbody element not found');
+        }
+
         tbody.innerHTML = '';
+
         data.forEach(device => {
+          // Validate device data
+          if (!device ||!device.IP) {
+            console.error('scanDevices() missing IP in device data, skipping bad row', device);
+            return; 
+          }
+
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${device.IP}</td>
@@ -86,27 +109,97 @@
           `;
           tbody.appendChild(tr);
         });
+      })
+      .catch(error => {
+        console.log('scanDevices() failed', error);
       });
   }
 
   function scanDevice(ip, btn) {
+    // Validate IP address
+    if (!ip) {
+      console.log('scanDevice() missing IP address');
+      return;
+    }
+
+    // Validate button
+    if (!btn) {
+      console.log('scanDevice() missing button');
+      return;
+    }
+
     const statusSpan = btn.nextElementSibling;
+    // Validate status span
+    if (!statusSpan) {
+      console.log('scanDevice() missing status span');
+      return;
+    }
+
     statusSpan.textContent = ' scanning…';
+
     fetch('/api/scan_device', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ip })
     })
-    .then(r => r.json())
+    .then(r => {
+      // Check for HTTP errors
+      if (!r.ok) {
+        console.log('scanDevice() HTTP error', r.status);
+        throw new Error('scanDevice() HTTP error', r.status);
+      }
+      return r.json();
+    })
     .then(data => {
+      // Check for valid data
+      if (!data || !data.job_id) {
+        console.log('scanDevice() missing job_id in response', data);
+        throw new Error('scanDevice() missing job_id in response', data);
+        span.textContent = ' error starting scan';
+        return;
+      }
       pollStatus(data.job_id, statusSpan);
+    })
+    .catch(error => {
+      // Handle fetch or processing errors
+      console.log('scanDevice() failed', error);
+      statusSpan.textContent = ' error starting scan';
     });
   }
 
   function pollStatus(jobId, span) {
+    // Validate jobId
+    if (!jobId) {
+      console.log('pollStatus() missing jobId');
+      if (span) {
+        span.textContent = ' error: missing jobId';
+      }
+      return;
+    }
+    // Validate span
+    if (!span) {
+      console.log('pollStatus() missing span');
+      return;
+    }
+
+
     fetch(`/api/scan_status/${jobId}`)
-      .then(r => r.json())
+      .then(r => {
+        // Check for HTTP errors
+        if (!r.ok) {
+          console.log('pollStatus() HTTP error', r.status);
+          throw new Error('pollStatus() HTTP error', r.status);
+        }
+        return r.json();
+      })
       .then(data => {
+        if (!data || !data.status) {
+          console.log('pollStatus() missing status in response', data);
+          throw new Error('pollStatus() missing status in response', data);
+          span.textContent = ' error retrieving status';
+          return;
+        }
+
         span.textContent = ' ' + data.status;
         if (data.status === 'queued' || data.status === 'running') {
           setTimeout(() => pollStatus(jobId, span), 2000);
@@ -114,6 +207,11 @@
         if (data.status === 'done') {
           const ports = data.open_ports || [];
           span.textContent = ' done. Open ports: ' + (ports.length ? ports.join(', ') : 'none');
+        }
+
+        // Handle backend error status
+        if (data.status === 'error') {
+          span.textContent = ' error during scan';
         }
       });
   }
