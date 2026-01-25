@@ -218,4 +218,55 @@
 
   // load devices on page load
   scanDevices();
+
+
+  function renderTraffic(samples){
+    const container = document.getElementById('traffic-charts');
+    if (!container) {
+      console.log('renderTraffic() missing container');
+      return;
+    }
+
+    if (samples.length === 0) {
+      container.innerHTML = '<p>No traffic data available.</p>';
+      return;
+    }
+
+    const lastSample = samples[samples.length - 1];
+    const ts = new Date(lastSample[0] * 1000).toLocaleTimeString();
+    const kbIn = (lastSample[1] / 1024).toFixed(2);
+    const kbOut = (lastSample[2] / 1024).toFixed(2);
+
+    container.innerHTML = `
+      <h3>Latest Traffic Sample (at ${ts})</h3>
+      <p>Inbound: ${kbIn} KB/s</p>
+      <p>Outbound: ${kbOut} KB/s</p>
+    `;
+  }
+
+  function fetchTraffic(){
+    fetch('/api/traffic')
+      .then(response => {
+        if (!response.ok) {
+          console.log('fetchTraffic() HTTP error', response.status);
+          throw new Error('fetchTraffic() HTTP error', response.status);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (!Array.isArray(data)) {
+          console.log('fetchTraffic() invalid data format', data);
+          throw new Error('fetchTraffic() invalid data format', data);
+        }
+        renderTraffic(data);
+      })
+      .catch(error => {
+        console.log('fetchTraffic() failed', error);
+      });
+  }
+
+  // fetch traffic data every 5 seconds
+  setInterval(fetchTraffic, 5000);
+  // initial fetch
+  fetchTraffic();
 </script>

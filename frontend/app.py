@@ -9,6 +9,14 @@ import threading
 import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory, render_template
+# For traffic monitring
+import time 
+import threading
+from collections import deque
+
+TRAFFIC_WINDOW_SECONDS = 60  # seconds
+# each entry is (timestamp, bytes_sent, bytes_recv)
+traffic_samples = deque(maxlen=TRAFFIC_WINDOW_SECONDS)
 
 
 
@@ -111,6 +119,33 @@ def scan_device_thread(ip, job_id):
         jobs[job_id]["message"] = str(e)
 
 
+# Traffic monitoring thread
+# I gave my test device a static IP of 10.10.10.10
+# The test device is connected to the Pi via eth0
+# The Pi is forwarding traffic from eth0 to wlan0 so the test device has internet access
+def traffic_monitor_thread(ip="10.10.10.10", iface="eth0"):
+    prev_bytes_sent = 0
+    prev_bytes_recv = 0
+
+    while True:
+        try:
+            with open(f"/sys/class/net/{iface}/statistics/tx_bytes", "r") as f:
+                bytes_sent = int(f.read().strip())
+            with open(f"/sys/class/net/{iface}/statistics/rx_bytes", "r") as f:
+                bytes_recv = int(f.read().strip())
+
+            timestamp = time.time()
+            traffic_samples.append((timestamp, bytes_sent - prev_bytes_sent, bytes_recv - prev_bytes_recv))
+
+            prev_bytes_sent = bytes_sent
+            prev_bytes_recv = bytes_recv
+
+            time.sleep(1)
+        except Exception as e:
+            print(f"Error in traffic monitor: {e}")
+            time.sleep(5)
+
+
 jobs = {}
 
 @app.get("/")
@@ -157,6 +192,12 @@ def scan_device_api():
 def scan_status(job_id):
     return jsonify(jobs.get(job_id, {"status": "not_found"}))
 
+
+@app.get("/api/traffic")
+def traffic_api():
+    return jsonify(list(traffic_samples))
+
 if __name__ == "__main__":
     init_db()
+    threading.Thread(target=traffic_monitor_thread, daemon=True).start()
     app.run(host=APP_HOST, port=APP_PORT)
