@@ -13,11 +13,25 @@ from flask import Flask, request, jsonify, send_from_directory, render_template
 import time 
 import threading
 from collections import deque
+# For scapy to read network traffic
+from collections import defaultdict
+from scapy.all import rdpcap, IP, TCP, UDP, sniff, DNS, DNSQR
+import time
+
 
 TRAFFIC_WINDOW_SECONDS = 60  # seconds
 # each entry is (timestamp, bytes_sent, bytes_recv)
 traffic_samples = deque(maxlen=TRAFFIC_WINDOW_SECONDS)
 
+# Test device IP for traffic monitoring
+MOINTORED_IP = "10.10.10.10"  
+
+# domain -> stats
+domain_stats = defaultdict(lambda: {
+    "count": 0,
+    "last_seen": 0,
+    "last_qtype": None,
+})
 
 
 APP_HOST = "0.0.0.0"
@@ -145,6 +159,38 @@ def traffic_monitor_thread(ip="10.10.10.10", iface="eth0"):
             print(f"Error in traffic monitor: {e}")
             time.sleep(5)
 
+# sniffs traffic on eth0 and extracts the DNS queries
+def dns_sniffer():
+    def process_packet(packet):
+        # only care about packets involving the test device
+        if not packet.haslayer(IP):
+            return
+
+        ip = packet[IP]
+        if ip.src != MOINTORED_IP and ip.dst != MOINTORED_IP:
+            return
+
+        # DNS query (qr == 0)
+        if packet.haslayer(DNS) and packet[DNS].qr == 0:
+            dns_layer = packet[DNS]
+            if not dns_layer.qd:
+                return
+
+            query_name = dns_layer.qd.qname.decode(errors="ignore").rstrip('.')
+            qtype = dns_layer.qd.qtype
+            timestamp = time.time()
+
+            stats = domain_stats[query_name]
+            stats["count"] += 1
+            stats["last_seen"] = timestamp
+            stats["last_qtype"] = qtype
+
+    sniff(
+        iface="eth0",
+        filter="udp port 53",
+        prn=process_packet,
+        store=0
+    )
 
 jobs = {}
 
@@ -197,7 +243,21 @@ def scan_status(job_id):
 def traffic_api():
     return jsonify(list(traffic_samples))
 
+@app.get("/api/dns_stats")
+def dns_stats_api():
+    result = []
+    for domain, stats in domain_stats.items():
+        entry = {
+            "domain": domain,
+            "count": stats["count"],
+            "last_seen": stats["last_seen"],
+            "last_qtype": stats["last_qtype"],
+        }
+        result.append(entry)
+    return jsonify(result)
+
 if __name__ == "__main__":
     init_db()
     threading.Thread(target=traffic_monitor_thread, daemon=True).start()
+    threading.Thread(target=dns_sniffer, daemon=True).start()
     app.run(host=APP_HOST, port=APP_PORT)

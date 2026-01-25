@@ -42,6 +42,10 @@
     <div id="traffic-charts">
       <!-- Traffic charts will be rendered here -->
     </div>
+
+  <h3>Domains</h3>
+  <ul id="domain-list">
+    <!-- Domain list will be populated here -->
   </section>
 </main>
 
@@ -269,4 +273,77 @@
   setInterval(fetchTraffic, 5000);
   // initial fetch
   fetchTraffic();
+
+
+function renderDomains(domains){ 
+  const list = document.getElementById('domain-list'); 
+  if (!list) { 
+    console.log('renderDomains() missing list element'); 
+    return; 
+  } 
+  list.innerHTML = ''; 
+  if (!domains.length) { 
+    const li = document.createElement('li'); 
+    li.textContent = 'No DNS queries captured yet...'; 
+    list.appendChild(li); 
+    return; 
+  } 
+
+  // QTYPE number -> human-friendly DNS record type name
+  const DNS_QTYPE_MAP = {
+    1: "A",
+    28: "AAAA",
+    5: "CNAME",
+    15: "MX",
+    16: "TXT",
+    2: "NS",
+    6: "SOA",
+    12: "PTR",
+    33: "SRV",
+    65: "HTTPS",
+  };
+
+  function qtypeLabel(qtype) {
+    if (qtype === null || qtype === undefined) return "unknown";
+    if (typeof qtype === "string") return qtype; // keeps compatibility if backend ever sends a string
+    return DNS_QTYPE_MAP[qtype] || `TYPE${qtype}`;
+  }
+
+  domains.forEach(d => { 
+    const li = document.createElement('li'); 
+    const name = d.domain || '(unknown domain)'; 
+    const lastSeen = d.last_seen 
+      ? new Date(d.last_seen * 1000).toLocaleString() 
+      : 'unknown'; 
+    const qtype = d.last_qtype ?? 'unknown'; 
+    const qtypeName = qtypeLabel(qtype);
+    li.textContent = `${name} - Queries: ${d.count}, Last Seen: ${lastSeen}, Last Query Type: ${qtypeName}`; 
+    list.appendChild(li); 
+  });
+}
+  function fetchDomains(){
+    fetch('/api/dns_stats')
+      .then(response => {
+        if (!response.ok) {
+          console.log('fetchDomains() HTTP error', response.status);
+          throw new Error('fetchDomains() HTTP error', response.status);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (!Array.isArray(data)) {
+          console.log('fetchDomains() invalid data format', data);
+          throw new Error('fetchDomains() invalid data format', data);
+        }
+        renderDomains(data);
+      })
+      .catch(error => {
+        console.log('fetchDomains() failed', error);
+      });
+  }
+
+  // fetch domain data every 10 seconds
+  setInterval(fetchDomains, 10000);
+  // initial fetch
+  fetchDomains();
 </script>
