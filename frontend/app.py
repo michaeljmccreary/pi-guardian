@@ -38,7 +38,13 @@ APP_HOST = "0.0.0.0"
 APP_PORT = 8080
 DB_PATH = os.path.join(os.path.dirname(__file__), "devices.db")
 
-app = Flask(__name__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(
+    __name__,
+    static_folder=os.path.join(BASE_DIR, "static"),
+    template_folder=os.path.join(BASE_DIR, "templates")
+)
 
 # Initialize database
 def db_conn():
