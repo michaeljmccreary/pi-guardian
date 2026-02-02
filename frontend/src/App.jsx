@@ -75,42 +75,64 @@ const OverviewCards = ({ deviceCount, dnsCount, trafficIn, trafficOut }) => (
   </div>
 )
 
-const DeviceList = ({ devices, onScan, onMonitor }) => (
-    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl p-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-            <div>
-                <h3 className="text-lg font-semibold text-white">Scanned Devices</h3>
-                <p className="text-slate-400 text-sm">Devices discovered on your local network.</p>
+const DeviceList = ({ devices, onScan, onMonitor }) => {
+    // Fetch MAC Vendors
+    const [vendors, setVendors] = useState({});
+
+    useEffect(() => {
+        devices.forEach(async (device) => {
+            if (device.mac_address && !vendors[device.mac_address]) {
+                try {
+                    const data = await API.getMacVendor(device.mac_address);
+                    setVendors(prev => ({ ...prev, [device.mac_address]: data }));
+                } catch (e) {
+                    setVendors(prev => ({ ...prev, [device.mac_address]: 'Unknown' }));
+                }
+            }
+        });
+    }, [devices]);
+
+    return (
+        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                <div>
+                    <h3 className="text-lg font-semibold text-white">Scanned Devices</h3>
+                    <p className="text-slate-400 text-sm">Devices discovered on your local network.</p>
+                </div>
+                <button className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors font-medium shadow-lg shadow-sky-500/20" onClick={onScan}>Scan Network</button>
             </div>
-            <button className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors font-medium shadow-lg shadow-sky-500/20" onClick={onScan}>Scan Network</button>
-        </div>
-        <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-                <thead className="text-xs uppercase text-slate-500 bg-white/5">
-                    <tr>
-                        <th className="px-4 py-3 rounded-l-lg">IP Address</th>
-                        <th className="px-4 py-3">MAC</th>
-                        <th className="px-4 py-3">Hostname</th>
-                        <th className="px-4 py-3 rounded-r-lg">Actions</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                    {devices.map((d, i) => (
-                        <tr key={i} className="hover:bg-white/5 transition-colors">
-                            <td className="px-4 py-3 font-medium text-white">{d.IP}</td>
-                            <td className="px-4 py-3 font-mono text-xs">{d.mac_address}</td>
-                            <td className="px-4 py-3">{d.hostname}</td>
-                            <td className="px-4 py-3">
-                                <button className="text-sky-400 hover:text-sky-300 text-sm font-medium transition-colors" onClick={() => onMonitor(d.IP)}>Monitor</button>
-                            </td>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-300">
+                    <thead className="text-xs uppercase text-slate-500 bg-white/5">
+                        <tr>
+                            <th className="px-4 py-3 rounded-l-lg">IP Address</th>
+                            <th className="px-4 py-3">MAC</th>
+                            <th className="px-4 py-3">Device Type</th>
+                            <th className="px-4 py-3">Hostname</th>
+                            <th className="px-4 py-3 rounded-r-lg">Actions</th>
                         </tr>
-                    ))}
-                    {devices.length === 0 && <tr><td colSpan="4" className="px-4 py-8 text-center text-slate-500">No devices found.</td></tr>}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                        {devices.map((d, i) => (
+                            <tr key={i} className="hover:bg-white/5 transition-colors">
+                                <td className="px-4 py-3 font-medium text-white">{d.IP}</td>
+                                <td className="px-4 py-3 font-mono text-xs">{d.mac_address}</td>
+                                <td className="px-4 py-3 text-slate-400">
+                                    {vendors[d.mac_address] || 'Loading...'}
+                                </td>
+                                <td className="px-4 py-3">{d.hostname}</td>
+                                <td className="px-4 py-3">
+                                    <button className="text-sky-400 hover:text-sky-300 text-sm font-medium transition-colors" onClick={() => onMonitor(d.IP)}>Monitor</button>
+                                </td>
+                            </tr>
+                        ))}
+                        {devices.length === 0 && <tr><td colSpan="5" className="px-4 py-8 text-center text-slate-500">No devices found.</td></tr>}
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
-)
+    );
+};
 
 const TrafficMonitor = ({ devices, selectedDevice, onDeviceSelect, onBack, trafficData, dnsData, timeFilter, setTimeFilter }) => {
     // Chart Config

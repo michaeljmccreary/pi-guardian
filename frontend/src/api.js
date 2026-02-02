@@ -92,3 +92,8 @@ export const getProtocols = async (ip = null) => {
     const res = await api.get('/protocols', { params: { ip } });
     return res.data;
 };
+
+export const getMacVendor = async (mac) => {
+    const res = await api.get('/mac_vendor', { params: { mac } });
+    return res.data.vendor;
+};

@@ -17,6 +17,8 @@ from collections import deque
 from collections import defaultdict
 from scapy.all import rdpcap, IP, TCP, UDP, sniff, DNS, DNSQR
 import time
+# for API call to identify devices by MAC address
+import requests
 
 
 TRAFFIC_WINDOW_SECONDS = 60  # seconds
@@ -255,6 +257,19 @@ def dns_stats_api():
         }
         result.append(entry)
     return jsonify(result)
+
+@app.get("/api/mac_vendor")
+def mac_vendor():
+    mac = request.args.get("mac")
+    if not mac:
+        return jsonify({"vendor": "Unknown"})
+    try:
+        resp = requests.get(f"https://api.macvendors.com/{mac}", timeout=5)
+        if resp.status_code == 200:
+            return jsonify({"vendor": resp.text})
+        return jsonify({"vendor": "Unknown"})
+    except:
+        return jsonify({"vendor": "Unknown"})
 
 if __name__ == "__main__":
     init_db()
