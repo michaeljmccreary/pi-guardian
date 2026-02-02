@@ -6,7 +6,7 @@ const api = axios.create({
 });
 
 // --- MOCK DATA CONFIG ---
-const USE_MOCK = false; // Set to true to use mock data
+const USE_MOCK = false; // Set to true to use mock data for testing
 
 const mockDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
