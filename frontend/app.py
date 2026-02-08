@@ -20,6 +20,10 @@ from scapy.all import rdpcap, IP, TCP, UDP, sniff, DNS, DNSQR
 import time
 # for API call to identify devices by MAC address
 import requests
+# for password hashing
+from werkzeug.security import generate_password_hash, check_password_hash
+
+
 load_dotenv()
 MAC_VENDOR_API = os.getenv("MAC_VENDOR_API")
 
@@ -61,6 +65,15 @@ def init_db():
                 last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        conn.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        is_admin BOOLEAN DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+''')
         conn.commit()
 
 def update_device(ip, mac_address, hostname):
@@ -199,10 +212,12 @@ def dns_sniffer():
 
 jobs = {}
 
+# simple API to return list of devices in the database
 @app.get("/")
 def index():
     return render_template("index.html")
 
+# API to get list of devices from the database
 @app.get("/api/devices")
 def get_devices_api():
     devices = scan_arp_table()
@@ -210,6 +225,7 @@ def get_devices_api():
         update_device(ip, mac, hostname)
     return jsonify(get_devices())
 
+# API to trigger a scan of all devices in the ARP table
 @app.get("/api/scan")
 def scan_api():
     devices = scan_arp_table()
@@ -217,6 +233,7 @@ def scan_api():
         update_device(ip, mac, hostname)
     return jsonify(get_devices())
 
+# API to trigger a scan of a specific device by IP address
 @app.post("/api/scan_device")
 def scan_device_api():
     data = request.get_json()
@@ -239,29 +256,37 @@ def scan_device_api():
 
     return jsonify({"job_id": job_id})
 
+# simple login API that checks username and password against the users table in the database
+# created a temp py file to add a user to the database with a hashed password for testing
+# after the user was added I delted the file since it contains the plaintext password
 @app.post("/api/login")
 def login():
     data = request.get_json()
     username = data.get("username")
     password = data.get("password")
 
-    # For now, adding a user to .env is good enough, will add proper user management later
-    if username == os.getenv("ADMIN_USER") and password == os.getenv("ADMIN_PASS"):
-        # Simple token (swap for JWT later)
+    with db_conn() as conn:
+        user = conn.execute(
+            "SELECT * FROM users WHERE username = ?", (username,)
+        ).fetchone()
+
+    if user and check_password_hash(user["password_hash"], password):
         token = str(uuid.uuid4())
-        return jsonify({"token": token})
+        return jsonify({"token": token, "is_admin": bool(user["is_admin"])})
 
     return jsonify({"error": "Invalid credentials"}), 401
 
+# API to get scan status by job ID
 @app.get("/api/scan_status/<job_id>")
 def scan_status(job_id):
     return jsonify(jobs.get(job_id, {"status": "not_found"}))
 
-
+# API to get traffic stats for the monitored device
 @app.get("/api/traffic")
 def traffic_api():
     return jsonify(list(traffic_samples))
 
+# API to get DNS query stats
 @app.get("/api/dns_stats")
 def dns_stats_api():
     result = []
@@ -275,6 +300,8 @@ def dns_stats_api():
         result.append(entry)
     return jsonify(result)
 
+# API to get vendor info from MAC address using the MAC_VENDOR_API key
+# I was being rate limited so I signed up for a API key that allows 10,000 requests per day
 @app.get("/api/mac_vendor")
 def mac_vendor():
     mac = request.args.get("mac")
@@ -291,6 +318,11 @@ def mac_vendor():
         return jsonify({"vendor": "Unknown"})
     except:
         return jsonify({"vendor": "Unknown"})
+
+# for future use to return list of protocols used by devices based on traffic analysis
+@app.get("/api/protocols")
+def protocols_api():
+    return jsonify([])
 
 if __name__ == "__main__":
     init_db()
