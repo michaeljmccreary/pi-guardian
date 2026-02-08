@@ -8,6 +8,7 @@ import subprocess
 import threading
 import uuid
 from datetime import datetime
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_from_directory, render_template
 # For traffic monitring
 import time 
@@ -19,6 +20,8 @@ from scapy.all import rdpcap, IP, TCP, UDP, sniff, DNS, DNSQR
 import time
 # for API call to identify devices by MAC address
 import requests
+load_dotenv()
+MAC_VENDOR_API = os.getenv("MAC_VENDOR_API")
 
 
 TRAFFIC_WINDOW_SECONDS = 60  # seconds
@@ -264,7 +267,11 @@ def mac_vendor():
     if not mac:
         return jsonify({"vendor": "Unknown"})
     try:
-        resp = requests.get(f"https://api.macvendors.com/{mac}", timeout=5)
+        headers = {
+            "Authorization": f"Bearer {MAC_VENDOR_API}",
+            "Accept": "text/plain"
+        }
+        resp = requests.get(f"https://api.macvendors.com/v1/lookup/{mac}", headers=headers, timeout=5)
         if resp.status_code == 200:
             return jsonify({"vendor": resp.text})
         return jsonify({"vendor": "Unknown"})
