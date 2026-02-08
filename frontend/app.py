@@ -239,6 +239,20 @@ def scan_device_api():
 
     return jsonify({"job_id": job_id})
 
+@app.post("/api/login")
+def login():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+
+    # For now, adding a user to .env is good enough, will add proper user management later
+    if username == os.getenv("ADMIN_USER") and password == os.getenv("ADMIN_PASS"):
+        # Simple token (swap for JWT later)
+        token = str(uuid.uuid4())
+        return jsonify({"token": token})
+
+    return jsonify({"error": "Invalid credentials"}), 401
+
 @app.get("/api/scan_status/<job_id>")
 def scan_status(job_id):
     return jsonify(jobs.get(job_id, {"status": "not_found"}))

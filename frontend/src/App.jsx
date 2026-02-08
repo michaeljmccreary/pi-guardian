@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, BarElement } from 'chart.js'
 import { Line, Doughnut, Bar } from 'react-chartjs-2'
 import * as API from './api'
+import Login from './Login'
+
+function App() {
+    const [token, setToken] = useState(localStorage.getItem('token'))
+
+    if (!token) {
+        return <Login onLogin={(t) => { localStorage.setItem('token', t); setToken(t) }} />
+    }
 
 // --- 1. CONFIGURATION ---
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, BarElement)
@@ -515,6 +523,7 @@ function App() {
       </div>
     </div>
   )
+}
 }
 
 export default App
