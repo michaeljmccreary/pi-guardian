@@ -9,6 +9,8 @@ import Devices from "./pages/Devices";
 import Traffic from "./pages/Traffic";
 import Compliance from "./pages/Compliance";
 import Users from "./pages/admin/Users";
+import AuditLog from "./pages/admin/AuditLog";
+import DeviceDetail from "./pages/DeviceDetail";
 
 export default function App() {
   return (
@@ -25,6 +27,7 @@ export default function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="devices" element={<Devices />} />
+            <Route path="devices/:id" element={<DeviceDetail />} />
             <Route path="traffic" element={<Traffic />} />
             <Route path="compliance" element={<Compliance />} />
             <Route
@@ -32,6 +35,14 @@ export default function App() {
               element={
                 <RequireAdmin>
                   <Users />
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="admin/logs"
+              element={
+                <RequireAdmin>
+                  <AuditLog />
                 </RequireAdmin>
               }
             />

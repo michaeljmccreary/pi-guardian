@@ -15,7 +15,7 @@ export async function api(path, { method = "GET", body, auth = true } = {}) {
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401) {
+  if (res.status === 401 && auth) {
     localStorage.removeItem("pg_token");
     window.location.assign("/login");
     return;

@@ -26,6 +26,11 @@ export default function Layout() {
             Users
           </NavLink>
         )}
+        {user?.is_admin && (
+          <NavLink to="/admin/logs" className={linkCls}>
+            Logs
+          </NavLink>
+        )}
       </aside>
       <main className="flex flex-col">
         <header className="flex justify-between items-center p-4 border-b border-slate-800">
